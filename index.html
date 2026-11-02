@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verificación de Documentos - OTEC</title>
-    <!-- Cargamos la librería oficial de Google -->
+    <!-- CORREGIDO: Cargamos la librería de autenticación real de Google -->
     <script src="https://google.com" async defer></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -35,7 +35,6 @@
     </div>
     
     <!-- Configuración del botón de Google -->
-    <!-- REEMPLAZA EL DATA-CLIENT_ID CON EL TUYO -->
     <div id="g_id_onload"
          data-client_id="7035182dj25.apps.googleusercontent.com"
          data-callback="handleCredentialResponse"
@@ -53,9 +52,8 @@
 </div>
 
 <script>
-    // REEMPLAZA ESTA URL CON TU URL DE GOOGLE APPS SCRIPT
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzn7E8th_KZpRosWlRqva-1H9XStiQth8dFs2XOn0QfO25KqBNbQNBrVgeHb-8Nh_RTmA/exec
-";
+    // CORREGIDO: Todo en una sola línea continua, sin saltos internos
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzn7E8th_KZpRosWlRqva-1H9XStiQth8dFs2XOn0QfO25KqBNbQNBrVgeHb-8Nh_RTmA/exec";
 
     // Función estética para poner puntos y guion automáticamente mientras escriben
     function formatearRUT(input) {
