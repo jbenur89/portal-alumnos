@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verificación de Documentos - OTEC</title>
-    <!-- Cargamos la librería oficial de identidad de Google -->
-    <script src="https://google.com" async defer></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
@@ -34,7 +32,6 @@
         <input type="text" id="rutInput" placeholder="Ej: 12.345.678-9" oninput="formatearRUT(this)">
     </div>
     
-    <!-- Contenedor dinámico donde se forzará el botón de Google -->
     <div class="login-box">
         <div id="googleButtonDiv"></div>
     </div>
@@ -46,12 +43,27 @@
 </div>
 
 <script>
-    // CONSTANTES DE CONFIGURACIÓN (Mantengo tus credenciales reales actuales)
-    const CLIENT_ID = "703518237042-291mgrc3hhqk4s40k55s2t9ckac9dj25.apps.googleusercontent.com"; // <-- Recuerda cambiar este por tu ID largo real si sigue fallando
+    // CONSTANTES DE CONFIGURACIÓN
+    const CLIENT_ID = "703518237042-291mgrc3hhqk4s40k55s2t9ckac9dj25.apps.googleusercontent.com"; // Asegúrate que en tu archivo real esté tu ID largo completo
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzn7E8th_KZpRosWlRqva-1H9XStiQth8dFs2XOn0QfO25KqBNbQNBrVgeHb-8Nh_RTmA/exec";
 
-    // Inicialización forzada del botón por código apenas carga la página
-    window.onload = function () {
+    // Inyección dinámica forzada del script de Google para evitar bloqueos del navegador
+    (function() {
+        const script = document.createElement('script');
+        script.src = "https://google.com";
+        script.async = true;
+        script.defer = true;
+        script.onload = inicializarBotonGoogle;
+        script.onerror = function() {
+            console.error("El navegador bloqueó la API de Google.");
+            const errorDiv = document.getElementById("error-msg");
+            errorDiv.innerText = "Tu navegador está bloqueando el inicio de sesión de Google. Intenta usando el Modo Incógnito o cambia de navegador.";
+            errorDiv.style.display = "block";
+        };
+        document.head.appendChild(script);
+    })();
+
+    function inicializarBotonGoogle() {
         if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
             google.accounts.id.initialize({
                 client_id: CLIENT_ID,
@@ -63,14 +75,9 @@
                 document.getElementById("googleButtonDiv"),
                 { theme: "outline", size: "large", text: "signin_with", shape: "rectangular" }
             );
-        } else {
-            console.error("La librería de Google no se cargó correctamente. Revisa tu conexión a internet.");
-            document.getElementById("error-msg").innerText = "Error al cargar el módulo de seguridad de Google. Recarga la página.";
-            document.getElementById("error-msg").style.display = "block";
         }
-    };
+    }
 
-    // Función estética para poner puntos y guion automáticamente mientras escriben
     function formatearRUT(input) {
         let valor = input.value.replace(/[^0-9kK]/g, '');
         if (valor.length < 2) return;
@@ -79,7 +86,6 @@
         input.value = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-" + dv;
     }
 
-    // Alumno se loguea exitosamente en Google
     function handleCredentialResponse(response) {
         const rut = document.getElementById("rutInput").value;
         const errorDiv = document.getElementById("error-msg");
@@ -98,14 +104,16 @@
         loading.style.display = "block";
 
         try {
-            // Decodificar el correo del token JWT de Google de manera segura
-            const base64Url = response.credential.split('.')[1];
+            // CORREGIDO: Ajuste en la decodificación del token para JavaScript dinámico
+            const tokenParts = response.credential.split('.');
+            if (tokenParts.length < 2) throw new Error("Token inválido");
+            
+            const base64Url = tokenParts[1];
             const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
             const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
             const googleUser = JSON.parse(jsonPayload);
             const emailVerified = googleUser.email;
 
-            // Consultamos al Sheets mediante Apps Script
             fetch(WEB_APP_URL, {
                 method: "POST",
                 mode: "cors",
