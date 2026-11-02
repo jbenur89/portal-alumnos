@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Verificación de Documentos - OTEC</title>
-    <!-- CORREGIDO: Cargamos la librería de autenticación real de Google -->
-<script src="https://google.com" onload="console.log('Google API Cargada')" async defer></script>
+    <!-- Cargamos la librería oficial de identidad de Google -->
+    <script src="https://google.com" async defer></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
@@ -16,7 +16,7 @@
         label { display: block; font-weight: 600; color: #4a5568; margin-bottom: 8px; font-size: 14px; }
         input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 16px; transition: border-color 0.2s; }
         input:focus { border-color: #4285f4; outline: none; }
-        .login-box { display: flex; justify-content: center; margin-top: 20px; }
+        .login-box { display: flex; justify-content: center; margin-top: 20px; min-height: 40px; }
         .btn-drive { display: none; margin-top: 25px; background-color: #34a853; color: white; padding: 14px; text-decoration: none; border-radius: 6px; font-weight: bold; width: 100%; font-size: 16px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .btn-drive:hover { background-color: #2d8e47; }
         #error-msg { color: #e53e3e; margin-top: 15px; font-weight: 500; font-size: 14px; display: none; background: #fff5f5; padding: 10px; border-radius: 6px; border: 1px solid #fed7d7; }
@@ -34,15 +34,9 @@
         <input type="text" id="rutInput" placeholder="Ej: 12.345.678-9" oninput="formatearRUT(this)">
     </div>
     
-    <!-- Configuración del botón de Google -->
-    <div id="g_id_onload"
-         data-client_id="703518237042-291mgrc3hhqk4s40k55s2t9ckac9dj25.apps.googleusercontent.com"
-         data-callback="handleCredentialResponse"
-         data-auto_prompt="false">
-    </div>
-    
+    <!-- Contenedor dinámico donde se forzará el botón de Google -->
     <div class="login-box">
-        <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="signin_with" data-shape="rectangular"></div>
+        <div id="googleButtonDiv"></div>
     </div>
 
     <div id="loading">Verificando datos en el sistema...</div>
@@ -52,8 +46,29 @@
 </div>
 
 <script>
-    // CORREGIDO: Todo en una sola línea continua, sin saltos internos
+    // CONSTANTES DE CONFIGURACIÓN (Mantengo tus credenciales reales actuales)
+    const CLIENT_ID = "703518237042-291mgrc3hhqk4s40k55s2t9ckac9dj25.apps.googleusercontent.com"; // <-- Recuerda cambiar este por tu ID largo real si sigue fallando
     const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzn7E8th_KZpRosWlRqva-1H9XStiQth8dFs2XOn0QfO25KqBNbQNBrVgeHb-8Nh_RTmA/exec";
+
+    // Inicialización forzada del botón por código apenas carga la página
+    window.onload = function () {
+        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+            google.accounts.id.initialize({
+                client_id: CLIENT_ID,
+                callback: handleCredentialResponse,
+                auto_select: false
+            });
+            
+            google.accounts.id.renderButton(
+                document.getElementById("googleButtonDiv"),
+                { theme: "outline", size: "large", text: "signin_with", shape: "rectangular" }
+            );
+        } else {
+            console.error("La librería de Google no se cargó correctamente. Revisa tu conexión a internet.");
+            document.getElementById("error-msg").innerText = "Error al cargar el módulo de seguridad de Google. Recarga la página.";
+            document.getElementById("error-msg").style.display = "block";
+        }
+    };
 
     // Función estética para poner puntos y guion automáticamente mientras escriben
     function formatearRUT(input) {
@@ -82,36 +97,43 @@
 
         loading.style.display = "block";
 
-        // Decodificar el correo del token JWT de Google
-        const base64Url = response.credential.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-        const googleUser = JSON.parse(jsonPayload);
-        const emailVerified = googleUser.email;
+        try {
+            // Decodificar el correo del token JWT de Google de manera segura
+            const base64Url = response.credential.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+            const googleUser = JSON.parse(jsonPayload);
+            const emailVerified = googleUser.email;
 
-        // Consultamos al Sheets mediante Apps Script
-        fetch(WEB_APP_URL, {
-            method: "POST",
-            mode: "cors",
-            body: JSON.stringify({ rut: rut, email: emailVerified })
-        })
-        .then(res => res.json())
-        .then(data => {
-            loading.style.display = "none";
-            if (data.success) {
-                driveLink.href = data.url;
-                driveLink.style.display = "block";
-            } else {
-                errorDiv.innerText = data.error || "No se pudo comprobar la identidad.";
+            // Consultamos al Sheets mediante Apps Script
+            fetch(WEB_APP_URL, {
+                method: "POST",
+                mode: "cors",
+                body: JSON.stringify({ rut: rut, email: emailVerified })
+            })
+            .then(res => res.json())
+            .then(data => {
+                loading.style.display = "none";
+                if (data.success) {
+                    driveLink.href = data.url;
+                    driveLink.style.display = "block";
+                } else {
+                    errorDiv.innerText = data.error || "No se pudo comprobar la identidad.";
+                    errorDiv.style.display = "block";
+                }
+            })
+            .catch(err => {
+                loading.style.display = "none";
+                errorDiv.innerText = "Error de conexión con el servidor de la OTEC.";
                 errorDiv.style.display = "block";
-            }
-        })
-        .catch(err => {
+                console.error("Error en Fetch:", err);
+            });
+        } catch (e) {
             loading.style.display = "none";
-            errorDiv.innerText = "Error de conexión con el servidor de la OTEC.";
+            errorDiv.innerText = "Error interno al procesar el inicio de sesión.";
             errorDiv.style.display = "block";
-            console.error(err);
-        });
+            console.error("Error en JWT:", e);
+        }
     }
 </script>
 </body>
