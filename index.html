@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificación de Documentos - OTEC</title>
+    <!-- Cargamos la librería oficial de Google -->
+    <script src="https://google.com" async defer></script>
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .card { background: white; padding: 40px 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); width: 100%; max-width: 450px; text-align: center; }
+        h2 { color: #1a202c; margin-bottom: 10px; font-size: 24px; }
+        p { color: #4a5568; font-size: 14px; margin-bottom: 25px; line-height: 1.5; }
+        .input-group { text-align: left; margin-bottom: 20px; }
+        label { display: block; font-weight: 600; color: #4a5568; margin-bottom: 8px; font-size: 14px; }
+        input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 16px; transition: border-color 0.2s; }
+        input:focus { border-color: #4285f4; outline: none; }
+        .login-box { display: flex; justify-content: center; margin-top: 20px; }
+        .btn-drive { display: none; margin-top: 25px; background-color: #34a853; color: white; padding: 14px; text-decoration: none; border-radius: 6px; font-weight: bold; width: 100%; font-size: 16px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn-drive:hover { background-color: #2d8e47; }
+        #error-msg { color: #e53e3e; margin-top: 15px; font-weight: 500; font-size: 14px; display: none; background: #fff5f5; padding: 10px; border-radius: 6px; border: 1px solid #fed7d7; }
+        #loading { display: none; color: #4285f4; font-weight: 600; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Portal de Acreditación</h2>
+    <p>Para acceder a tus carpetas resguardadas ante la SPD, ingresa tu RUT y valida tu identidad con tu cuenta Google.</p>
+    
+    <div class="input-group">
+        <label for="rutInput">RUT del Alumno</label>
+        <input type="text" id="rutInput" placeholder="Ej: 12.345.678-9" oninput="formatearRUT(this)">
+    </div>
+    
+    <!-- Configuración del botón de Google -->
+    <!-- REEMPLAZA EL DATA-CLIENT_ID CON EL TUYO -->
+    <div id="g_id_onload"
+         data-client_id="7035182dj25.apps.googleusercontent.com"
+         data-callback="handleCredentialResponse"
+         data-auto_prompt="false">
+    </div>
+    
+    <div class="login-box">
+        <div class="g_id_signin" data-type="standard" data-size="large" data-theme="outline" data-text="signin_with" data-shape="rectangular"></div>
+    </div>
+
+    <div id="loading">Verificando datos en el sistema...</div>
+    <div id="error-msg"></div>
+    
+    <a id="driveLink" href="#" target="_blank" class="btn-drive">📁 Abrir mi carpeta segura</a>
+</div>
+
+<script>
+    // REEMPLAZA ESTA URL CON TU URL DE GOOGLE APPS SCRIPT
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzn7E8th_KZpRosWlRqva-1H9XStiQth8dFs2XOn0QfO25KqBNbQNBrVgeHb-8Nh_RTmA/exec
+";
+
+    // Función estética para poner puntos y guion automáticamente mientras escriben
+    function formatearRUT(input) {
+        let valor = input.value.replace(/[^0-9kK]/g, '');
+        if (valor.length < 2) return;
+        let cuerpo = valor.slice(0, -1);
+        let dv = valor.slice(-1).toUpperCase();
+        input.value = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-" + dv;
+    }
+
+    // Alumno se loguea exitosamente en Google
+    function handleCredentialResponse(response) {
+        const rut = document.getElementById("rutInput").value;
+        const errorDiv = document.getElementById("error-msg");
+        const driveLink = document.getElementById("driveLink");
+        const loading = document.getElementById("loading");
+        
+        errorDiv.style.display = "none";
+        driveLink.style.display = "none";
+
+        if (!rut || rut.length < 3) {
+            errorDiv.innerText = "Por favor, ingresa un RUT válido primero.";
+            errorDiv.style.display = "block";
+            return;
+        }
+
+        loading.style.display = "block";
+
+        // Decodificar el correo del token JWT de Google
+        const base64Url = response.credential.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+        const googleUser = JSON.parse(jsonPayload);
+        const emailVerified = googleUser.email;
+
+        // Consultamos al Sheets mediante Apps Script
+        fetch(WEB_APP_URL, {
+            method: "POST",
+            mode: "cors",
+            body: JSON.stringify({ rut: rut, email: emailVerified })
+        })
+        .then(res => res.json())
+        .then(data => {
+            loading.style.display = "none";
+            if (data.success) {
+                driveLink.href = data.url;
+                driveLink.style.display = "block";
+            } else {
+                errorDiv.innerText = data.error || "No se pudo comprobar la identidad.";
+                errorDiv.style.display = "block";
+            }
+        })
+        .catch(err => {
+            loading.style.display = "none";
+            errorDiv.innerText = "Error de conexión con el servidor de la OTEC.";
+            errorDiv.style.display = "block";
+            console.error(err);
+        });
+    }
+</script>
+</body>
+</html>
