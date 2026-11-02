@@ -54,7 +54,7 @@
 </div>
 
 <script>
-    // Tu Web App URL inyectada de forma limpia
+    // CORREGIDO: Enlace real directo a tu Google Apps Script
     const WEB_APP_URL = "https://google.com";
 
     function formatearRUT(input) {
@@ -104,6 +104,7 @@
             btn.innerText = "Solicitar Código de Acceso";
             btn.disabled = false;
             mostrarError("Error al conectar con la base de datos.");
+            console.error(err);
         });
     }
 
@@ -146,6 +147,7 @@
             btn.innerText = "Verificar Código e Ingresar";
             btn.disabled = false;
             mostrarError("Error al procesar el código.");
+            console.error(err);
         });
     }
 
