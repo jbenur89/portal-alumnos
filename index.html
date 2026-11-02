@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Portal de Documentación - OTEC</title>
-    <!-- Cargamos la librería oficial de autenticación de Google -->
-    <script src="https://google.com" async defer></script>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
@@ -15,60 +13,50 @@
         .input-group { text-align: left; margin-bottom: 20px; }
         label { display: block; font-weight: 600; color: #4a5568; margin-bottom: 8px; font-size: 14px; }
         input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 6px; font-size: 16px; transition: border-color 0.2s; }
-        input:focus { border-color: #4285f4; outline: none; }
-        .login-box { display: flex; justify-content: center; margin-top: 20px; min-height: 40px; }
-        .btn-drive { display: none; margin-top: 25px; background-color: #34a853; color: white; padding: 14px; text-decoration: none; border-radius: 6px; font-weight: bold; width: 100%; font-size: 16px; transition: background 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-align: center; }
+        input:focus { border-color: #1a73e8; outline: none; }
+        button { background-color: #1a73e8; color: white; border: none; padding: 14px; border-radius: 6px; font-size: 16px; font-weight: bold; width: 100%; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
+        button:hover { background-color: #1557b0; }
+        .btn-drive { display: none; margin-top: 25px; background-color: #34a853; color: white; padding: 14px; text-decoration: none; border-radius: 6px; font-weight: bold; width: 100%; font-size: 16px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .btn-drive:hover { background-color: #2d8e47; }
         #error-msg { color: #e53e3e; margin-top: 15px; font-weight: 500; font-size: 14px; display: none; background: #fff5f5; padding: 10px; border-radius: 6px; border: 1px solid #fed7d7; }
-        #loading { display: none; color: #4285f4; font-weight: 600; margin-top: 15px; }
+        #success-msg { color: #2b6cb0; margin-top: 15px; font-weight: 500; font-size: 14px; display: none; background: #ebf8ff; padding: 10px; border-radius: 6px; border: 1px solid #bee3f8; }
+        #step2 { display: none; margin-top: 20px; padding-top: 20px; border-top: 1px dashed #e2e8f0; }
     </style>
 </head>
 <body>
 
 <div class="card">
     <h2>Portal de Acreditación</h2>
-    <p>Para acceder a tus carpetas resguardadas ante la SPD, ingresa tu RUT y valida tu identidad con tu cuenta Google.</p>
+    <p>Para acceder de forma segura a tus carpetas resguardadas ante la SPD, ingresa tu RUT para recibir un código único en tu correo electrónico registrado.</p>
     
-    <div class="input-group">
-        <label for="rutInput">RUT del Alumno</label>
-        <input type="text" id="rutInput" placeholder="Ej: 12.345.678-9" oninput="formatearRUT(this)">
-    </div>
-    
-    <!-- Contenedor donde la librería de Google dibujará el botón oficial -->
-    <div class="login-box">
-        <div id="googleButtonDiv"></div>
+    <!-- PASO 1: Ingreso de RUT -->
+    <div id="step1">
+        <div class="input-group">
+            <label for="rutInput">RUT del Alumno</label>
+            <input type="text" id="rutInput" placeholder="Ej: 12.345.678-9" oninput="formatearRUT(this)">
+        </div>
+        <button id="btnSolicitar" onclick="solicitarCodigo()">Solicitar Código de Acceso</button>
     </div>
 
-    <div id="loading">Verificando datos en el sistema...</div>
+    <!-- PASO 2: Ingreso de Código Temporal -->
+    <div id="step2">
+        <div class="input-group">
+            <label for="codeInput">Código de 6 dígitos enviado a tu correo</label>
+            <input type="text" id="codeInput" placeholder="Ej: 123456" maxlength="6" style="text-align: center; letter-spacing: 5px; font-size: 20px;">
+        </div>
+        <button id="btnVerificar" onclick="verificarCodigo()">Verificar Código e Ingresar</button>
+    </div>
+
     <div id="error-msg"></div>
+    <div id="success-msg"></div>
     
     <a id="driveLink" href="#" target="_blank" class="btn-drive">📁 Abrir mi carpeta segura</a>
 </div>
 
 <script>
-    // TUS ENLACES REALES INYECTADOS CORRECTAMENTE
-    const CLIENT_ID = "703518237042-291mgrc3hhqk4s40k55s2t9ckac9dj25.apps.googleusercontent.com";
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzn7E8th_KZpRosWlRqva-1H9XStiQth8dFs2XOn0QfO25KqBNbQNBrVgeHb-8Nh_RTmA/exec";
+    // Tu Web App URL inyectada de forma limpia
+    const WEB_APP_URL = "https://google.com";
 
-    // Función que inicializa el botón apenas carga la ventana del navegador
-    window.onload = function () {
-        if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
-            google.accounts.id.initialize({
-                client_id: CLIENT_ID,
-                callback: handleCredentialResponse,
-                auto_select: false
-            });
-            
-            google.accounts.id.renderButton(
-                document.getElementById("googleButtonDiv"),
-                { theme: "outline", size: "large", text: "signin_with", shape: "rectangular" }
-            );
-        } else {
-            console.error("No se pudo cargar el script de Google. Verifique extensiones del navegador.");
-        }
-    };
-
-    // Formateador estético para el RUT
     function formatearRUT(input) {
         let valor = input.value.replace(/[^0-9kK]/g, '');
         if (valor.length < 2) return;
@@ -77,61 +65,94 @@
         input.value = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-" + dv;
     }
 
-    // Callback que recibe la respuesta exitosa del inicio de sesión de Google
-    function handleCredentialResponse(response) {
+    function solicitarCodigo() {
         const rut = document.getElementById("rutInput").value;
         const errorDiv = document.getElementById("error-msg");
-        const driveLink = document.getElementById("driveLink");
-        const loading = document.getElementById("loading");
+        const successDiv = document.getElementById("success-msg");
+        const btn = document.getElementById("btnSolicitar");
         
         errorDiv.style.display = "none";
-        driveLink.style.display = "none";
+        successDiv.style.display = "none";
 
         if (!rut || rut.length < 5) {
-            errorDiv.innerText = "Por favor, ingresa tu RUT primero.";
-            errorDiv.style.display = "block";
+            mostrarError("Por favor, ingresa un RUT válido.");
             return;
         }
 
-        loading.style.display = "block";
+        btn.innerText = "Enviando...";
+        btn.disabled = true;
 
-        try {
-            // Decodificación del token JWT recibido para extraer el email validado por Google
-            const base64Url = response.credential.split('.')[1];
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-            const googleUser = JSON.parse(jsonPayload);
-            const emailVerified = googleUser.email;
+        fetch(WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify({ action: "SOLICITAR_CODIGO", rut: rut })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.innerText = "Solicitar Código de Acceso";
+            btn.disabled = false;
+            
+            if (data.success) {
+                successDiv.innerText = "Código enviado con éxito al correo registrado: " + data.correo;
+                successDiv.style.display = "block";
+                document.getElementById("step2").style.display = "block";
+                document.getElementById("rutInput").disabled = true;
+            } else {
+                mostrarError(data.error);
+            }
+        })
+        .catch(err => {
+            btn.innerText = "Solicitar Código de Acceso";
+            btn.disabled = false;
+            mostrarError("Error al conectar con la base de datos.");
+        });
+    }
 
-            // Envío de parámetros mediante POST a la Web App de Google Sheets
-            fetch(WEB_APP_URL, {
-                method: "POST",
-                mode: "cors",
-                body: JSON.stringify({ rut: rut, email: emailVerified })
-            })
-            .then(res => res.json())
-            .then(data => {
-                loading.style.display = "none";
-                if (data.success) {
-                    driveLink.href = data.url;
-                    driveLink.style.display = "block";
-                } else {
-                    errorDiv.innerText = data.error || "No se encontró coincidencia en el sistema.";
-                    errorDiv.style.display = "block";
-                }
-            })
-            .catch(err => {
-                loading.style.display = "none";
-                errorDiv.innerText = "Error de comunicación con la base de datos.";
-                errorDiv.style.display = "block";
-                console.error("Fetch Error:", err);
-            });
-        } catch (e) {
-            loading.style.display = "none";
-            errorDiv.innerText = "Error de procesamiento del token de identidad.";
-            errorDiv.style.display = "block";
-            console.error("JWT Error:", e);
+    function verificarCodigo() {
+        const rut = document.getElementById("rutInput").value;
+        const codigo = document.getElementById("codeInput").value;
+        const errorDiv = document.getElementById("error-msg");
+        const driveLink = document.getElementById("driveLink");
+        const btn = document.getElementById("btnVerificar");
+
+        errorDiv.style.display = "none";
+
+        if (!codigo || codigo.length < 6) {
+            mostrarError("Ingresa el código completo de 6 dígitos.");
+            return;
         }
+
+        btn.innerText = "Verificando...";
+        btn.disabled = true;
+
+        fetch(WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify({ action: "VERIFICAR_CODIGO", rut: rut, codigo: codigo })
+        })
+        .then(res => res.json())
+        .then(data => {
+            btn.innerText = "Verificar Código e Ingresar";
+            btn.disabled = false;
+            
+            if (data.success) {
+                document.getElementById("success-msg").style.display = "none";
+                document.getElementById("step2").style.display = "none";
+                driveLink.href = data.url;
+                driveLink.style.display = "block";
+            } else {
+                mostrarError(data.error);
+            }
+        })
+        .catch(err => {
+            btn.innerText = "Verificar Código e Ingresar";
+            btn.disabled = false;
+            mostrarError("Error al procesar el código.");
+        });
+    }
+
+    function mostrarError(txt) {
+        const errorDiv = document.getElementById("error-msg");
+        errorDiv.innerText = txt;
+        errorDiv.style.display = "block";
     }
 </script>
 </body>
