@@ -16,6 +16,7 @@
         input:focus { border-color: #1a73e8; outline: none; }
         button { background-color: #1a73e8; color: white; border: none; padding: 14px; border-radius: 6px; font-size: 16px; font-weight: bold; width: 100%; cursor: pointer; transition: background 0.2s; margin-top: 10px; }
         button:hover { background-color: #1557b0; }
+        button:disabled { background-color: #90b4ec; cursor: wait; }
         .btn-drive { display: none; margin-top: 25px; background-color: #34a853; color: white; padding: 14px; text-decoration: none; border-radius: 6px; font-weight: bold; width: 100%; font-size: 16px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .btn-drive:hover { background-color: #2d8e47; }
         #error-msg { color: #e53e3e; margin-top: 15px; font-weight: 500; font-size: 14px; display: none; background: #fff5f5; padding: 10px; border-radius: 6px; border: 1px solid #fed7d7; }
@@ -28,7 +29,7 @@
 <div class="card">
     <h2>Portal de Acreditación</h2>
     <p>Para acceder de forma segura a tus carpetas resguardadas ante la SPD, ingresa tu RUT para recibir un código único en tu correo electrónico registrado.</p>
-    
+
     <!-- PASO 1: Ingreso de RUT -->
     <div id="step1">
         <div class="input-group">
@@ -42,20 +43,20 @@
     <div id="step2">
         <div class="input-group">
             <label for="codeInput">Código de 6 dígitos enviado a tu correo</label>
-            <input type="text" id="codeInput" placeholder="Ej: 123456" maxlength="6" style="text-align: center; letter-spacing: 5px; font-size: 20px;">
+            <input type="text" id="codeInput" placeholder="Ej: 123456" maxlength="6" inputmode="numeric" style="text-align: center; letter-spacing: 5px; font-size: 20px;">
         </div>
         <button id="btnVerificar" onclick="verificarCodigo()">Verificar Código e Ingresar</button>
     </div>
 
     <div id="error-msg"></div>
     <div id="success-msg"></div>
-    
-    <a id="driveLink" href="#" target="_blank" class="btn-drive">📁 Abrir mi carpeta segura</a>
+
+    <a id="driveLink" href="#" target="_blank" rel="noopener" class="btn-drive">📁 Abrir mi carpeta segura</a>
 </div>
 
 <script>
-    // CORREGIDO: Enlace real directo a tu Google Apps Script
-    const WEB_APP_URL = "https://google.com";
+    // URL de la Web App (debe terminar en /exec y estar en script.google.com)
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzn7E8th_KZpRosWlRqva-1H9XStiQth8dFs2XOn0QfO25KqBNbQNBrVgeHb-8Nh_RTmA/exec";
 
     function formatearRUT(input) {
         let valor = input.value.replace(/[^0-9kK]/g, '');
@@ -65,14 +66,35 @@
         input.value = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "-" + dv;
     }
 
-    function solicitarCodigo() {
+    // IMPORTANTE: no agregar "headers" al fetch. Con Content-Type: application/json el navegador
+    // hace una petición previa (preflight OPTIONS) que Apps Script no sabe responder.
+    // Sin headers, el body string se envía como text/plain y el navegador no hace preflight.
+    async function llamarBackend(payload) {
+        let host = "";
+        try { host = new URL(WEB_APP_URL).hostname; } catch (e) {}
+        if (host !== "script.google.com") {
+            throw new Error("WEB_APP_URL mal configurada: " + WEB_APP_URL);
+        }
+
+        const res = await fetch(WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify(payload)
+        });
+        const texto = await res.text();
+        try {
+            return JSON.parse(texto);
+        } catch (e) {
+            console.error("Respuesta no JSON (status " + res.status + "):", texto.slice(0, 300));
+            throw new Error("El servidor no devolvió JSON. Revisa la implementación del Apps Script.");
+        }
+    }
+
+    async function solicitarCodigo() {
         const rut = document.getElementById("rutInput").value;
-        const errorDiv = document.getElementById("error-msg");
         const successDiv = document.getElementById("success-msg");
         const btn = document.getElementById("btnSolicitar");
-        
-        errorDiv.style.display = "none";
-        successDiv.style.display = "none";
+
+        ocultarMensajes();
 
         if (!rut || rut.length < 5) {
             mostrarError("Por favor, ingresa un RUT válido.");
@@ -82,15 +104,8 @@
         btn.innerText = "Enviando...";
         btn.disabled = true;
 
-        fetch(WEB_APP_URL, {
-            method: "POST",
-            body: JSON.stringify({ action: "SOLICITAR_CODIGO", rut: rut })
-        })
-        .then(res => res.json())
-        .then(data => {
-            btn.innerText = "Solicitar Código de Acceso";
-            btn.disabled = false;
-            
+        try {
+            const data = await llamarBackend({ action: "SOLICITAR_CODIGO", rut: rut });
             if (data.success) {
                 successDiv.innerText = "Código enviado con éxito al correo registrado: " + data.correo;
                 successDiv.style.display = "block";
@@ -99,25 +114,24 @@
             } else {
                 mostrarError(data.error);
             }
-        })
-        .catch(err => {
-            btn.innerText = "Solicitar Código de Acceso";
-            btn.disabled = false;
+        } catch (err) {
             mostrarError("Error al conectar con la base de datos.");
             console.error(err);
-        });
+        } finally {
+            btn.innerText = "Solicitar Código de Acceso";
+            btn.disabled = false;
+        }
     }
 
-    function verificarCodigo() {
+    async function verificarCodigo() {
         const rut = document.getElementById("rutInput").value;
-        const codigo = document.getElementById("codeInput").value;
-        const errorDiv = document.getElementById("error-msg");
+        const code = document.getElementById("codeInput").value.trim();
         const driveLink = document.getElementById("driveLink");
         const btn = document.getElementById("btnVerificar");
 
-        errorDiv.style.display = "none";
+        document.getElementById("error-msg").style.display = "none";
 
-        if (!codigo || codigo.length < 6) {
+        if (!/^\d{6}$/.test(code)) {
             mostrarError("Ingresa el código completo de 6 dígitos.");
             return;
         }
@@ -125,30 +139,29 @@
         btn.innerText = "Verificando...";
         btn.disabled = true;
 
-        fetch(WEB_APP_URL, {
-            method: "POST",
-            body: JSON.stringify({ action: "VERIFICAR_CODIGO", rut: rut, codigo: codigo })
-        })
-        .then(res => res.json())
-        .then(data => {
-            btn.innerText = "Verificar Código e Ingresar";
-            btn.disabled = false;
-            
+        try {
+            const data = await llamarBackend({ action: "VERIFICAR_CODIGO", rut: rut, codigo: code });
             if (data.success) {
                 document.getElementById("success-msg").style.display = "none";
+                document.getElementById("step1").style.display = "none";
                 document.getElementById("step2").style.display = "none";
                 driveLink.href = data.url;
                 driveLink.style.display = "block";
             } else {
                 mostrarError(data.error);
             }
-        })
-        .catch(err => {
-            btn.innerText = "Verificar Código e Ingresar";
-            btn.disabled = false;
+        } catch (err) {
             mostrarError("Error al procesar el código.");
             console.error(err);
-        });
+        } finally {
+            btn.innerText = "Verificar Código e Ingresar";
+            btn.disabled = false;
+        }
+    }
+
+    function ocultarMensajes() {
+        document.getElementById("error-msg").style.display = "none";
+        document.getElementById("success-msg").style.display = "none";
     }
 
     function mostrarError(txt) {
